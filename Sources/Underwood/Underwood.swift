@@ -1,10 +1,17 @@
 public class 🇺🇸 {
   public init() {}
-  private final var routes: Set<Route> = []
+  private final var routes: [Route] = [] {
+    didSet {
+      let r = routes.sort()
+      if routes != r {
+        self.routes = r
+      }
+    }
+  }
 
   private func registerActionForPathWithMethod(action: Action, path: String, method: HTTPMethod) {
     let route = Route(method: method, path: path, action: action)
-    routes.insert(route)
+    routes.append(route)
   }
   public typealias Action = (params: [String:String], query: [String:String]) -> (ResponseType)
   public final func get(path: String, action: Action) {
@@ -61,7 +68,7 @@ extension RequestType {
   }
 }
 
-internal struct Route: Equatable, Hashable {
+internal struct Route: Comparable {
   private func match(path: String, method: HTTPMethod) -> Bool {
     return method == self.method && matchPath(path)
   }
@@ -79,9 +86,7 @@ internal struct Route: Equatable, Hashable {
 
   private let method: HTTPMethod
   private let path: String
-  var hashValue: Int {
-    return (method.rawValue.hashValue ^ path.hashValue)
-  }
+
   /// Returns the dictionary of path parameters, if any.
   /// Calling this method assumes that `self.matchPath(path)` is true
   internal func parametersForPath(path: String) -> [String:String] {
@@ -137,10 +142,11 @@ internal struct Route: Equatable, Hashable {
 }
 
 private extension String {
-  /// Splits a string with / assuming UTF-8 encoding. O(n)
+  /// Splits a string with / assuming UTF-8 encoding. O(n). Erases query string if present
   func splitPath() -> [String] {
-    return characters.split { $0 == "/" }
-      .map(String.init)
+    let comps = NSURLComponents(string: self)
+    return comps?.path?.characters.split { $0 == "/" }
+      .map(String.init) ?? []
   }
   /// O(n)
   var asTemplate: [Route.PathTemplateComponent] {
@@ -149,7 +155,30 @@ private extension String {
 }
 
 internal func ==(lhs: Route, rhs: Route) -> Bool {
-  return lhs.hashValue == rhs.hashValue
+  let leftTemplate = lhs.path.asTemplate, rightTemplate = rhs.path.asTemplate
+  guard leftTemplate.count == rightTemplate.count else {
+    return false
+  }
+  return countConstants(leftTemplate) == countConstants(rightTemplate)
+}
+
+private func countConstants(template: [Route.PathTemplateComponent]) -> Int {
+  return template.reduce(0) { accum, next in
+    if case .Constant = next {
+      return accum + 1
+    } else {
+      return accum
+    }
+  }
+}
+
+/// Comparison of routes defines specificity: if a route is "smaller" it should be considered more specific
+internal func <(lhs: Route, rhs: Route) -> Bool {
+  let leftTemplate = lhs.path.asTemplate, rightTemplate = rhs.path.asTemplate
+  guard leftTemplate.count == rightTemplate.count else {
+    return leftTemplate.count > rightTemplate.count // Assume more components implies more specific
+  }
+  return countConstants(leftTemplate) > countConstants(rightTemplate)
 }
 
 private struct NotFound: ResponseType {
