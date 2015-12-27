@@ -27,23 +27,96 @@ public class 🇺🇸 {
     let index = self.routes.indexOf({ $0.match(request.path, method: method) }) else {
       return NotFound()
     }
-    return self.routes[index].action(params: [:])
+    let route = self.routes[index]
+    return route.action(params: route.parametersForPath(request.path))
   }
 }
 
-private struct Route: Equatable, Hashable {
-  func match(path: String, method: HTTPMethod) -> Bool {
-    return path == self.path && method == self.method
+internal struct Route: Equatable, Hashable {
+  private func match(path: String, method: HTTPMethod) -> Bool {
+    return method == self.method && matchPath(path)
   }
-  let method: HTTPMethod
-  let path: String
+  private func matchPath(path: String) -> Bool {
+    guard self.path != path else {
+      return true // Shortcut expensive computations below
+    }
+    let components = path.pathComponents
+    guard PathComponent.matchPaths(components, self.path.pathComponents) else {
+      return false
+    }
+    // We now have two paths that match.
+    return true
+  }
+
+  private let method: HTTPMethod
+  private let path: String
   var hashValue: Int {
     return (method.rawValue.hashValue ^ path.hashValue)
   }
-  let action: 🇺🇸.Action
+  /// Returns the dictionary of path parameters, if any.
+  /// Calling this method assumes that `self.matchPath(path)` is true
+  internal func parametersForPath(path: String) -> [String:String] {
+    precondition(self.matchPath(path))
+    let inputPath = path.pathComponents
+    let template = self.path.pathComponents
+    let zipped = zip(inputPath, template)
+    var returnDict: [String:String] = [:]
+    for (input, template) in zipped {
+      guard case let .Variable(key) = template,
+        case let .Variable(value) = input else {
+          continue
+        }
+      returnDict[key] = value
+    }
+    return returnDict
+  }
+  internal let action: 🇺🇸.Action
+  private enum PathComponent {
+    case Constant(String)
+    case Variable(String)
+    static func fromString(string: String) -> PathComponent {
+      if string.hasPrefix(":") {
+        var str = string
+        str.removeAtIndex(str.startIndex)
+        return .Variable(str)
+      } else {
+        return .Constant(string)
+      }
+    }
+    func match(other: PathComponent) -> Bool {
+      switch (self, other) {
+      case let (.Constant(l), .Constant(r)):
+        return l == r
+      case (.Variable, .Variable):
+        return true
+      default: return false
+      }
+    }
+    static func matchPaths(lhs: [PathComponent], _ rhs: [PathComponent]) -> Bool {
+      guard lhs.count == rhs.count else { return false }
+      for (left, right) in zip(lhs, rhs) {
+        guard left.match(right) else {
+          return false
+        }
+      }
+      return true
+    }
+  }
 }
 
-private func ==(lhs: Route, rhs: Route) -> Bool {
+private extension String {
+  /// Splits a string with / assuming UTF-8 encoding. O(n)
+  func splitPath() -> [String] {
+    return characters.split { $0 == "/" }
+      .map(String.init)
+  }
+  /// O(n)
+  var pathComponents: [Route.PathComponent] {
+    return splitPath().map(Route.PathComponent.fromString)
+  }
+}
+
+internal func ==(lhs: Route, rhs: Route) -> Bool {
   return lhs.hashValue == rhs.hashValue
 }
 
@@ -60,4 +133,6 @@ private enum HTTPMethod: String {
   case HEAD
   case DELETE
 }
+
 import Nest
+import Foundation

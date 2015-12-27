@@ -1,5 +1,7 @@
 FROM swiftdocker/swift:latest
 
-ADD . /code
 WORKDIR /code
+ADD Package.swift ./
+RUN swift build
+ADD Sources/ ./
 RUN swift build
