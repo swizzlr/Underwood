@@ -10,15 +10,24 @@ final class RouteMatchingTests: XCTestCase {
     let result = app.application(GetAtPath(path: "/something"))
     XCTAssertEqual(result.body, "something")
   }
+
+  func testQueries() {
+    let app = TestApplication()
+    let result = app.application(GetAtPath(path: "/gimme-params?echo-this=hi&foo=bar"))
+    XCTAssertEqual(result.body, "hi")
+  }
 }
 
 private final class TestApplication: 🇺🇸 {
   private var called: [String] = []
   override init() {
     super.init()
-    get("/:query") { params in
+    get("/:query") { params, _ in
       self.called.append(params["query"]!)
       return Echo(body: params["query"]!)
+    }
+    get("/gimme-params") { _, query in
+      return Echo(body: query["echo-this"])
     }
   }
 }

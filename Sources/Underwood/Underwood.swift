@@ -6,7 +6,7 @@ public class 🇺🇸 {
     let route = Route(method: method, path: path, action: action)
     routes.insert(route)
   }
-  public typealias Action = (params: [String:String]) -> (ResponseType)
+  public typealias Action = (params: [String:String], query: [String:String]) -> (ResponseType)
   public final func get(path: String, action: Action) {
     registerActionForPathWithMethod(action, path: path, method: HTTPMethod.GET)
   }
@@ -28,7 +28,36 @@ public class 🇺🇸 {
       return NotFound()
     }
     let route = self.routes[index]
-    return route.action(params: route.parametersForPath(request.path))
+    return route.action(params: route.parametersForPath(request.path), query: request.queryItems())
+  }
+}
+
+extension RequestType {
+  func queryString() -> String? {
+    guard let indexOfFirstQuestionMark = self.path.characters.indexOf({ $0 == "?" }) else {
+      return nil
+    }
+    return String(self.path.characters.suffixFrom(indexOfFirstQuestionMark.successor()))
+  }
+  func queryItems() -> [String : String] {
+    guard let queryString = self.queryString() else {
+      return [:]
+    }
+    let pairs: [String] = queryString.characters.split { $0 == "&" }.map(String.init)
+    let tuples: [(String, String)] = pairs
+      .map {
+        $0.characters.split {
+          $0 == "="
+        }.map(String.init)
+      }
+      .map {
+        return ($0[0], $0[1])
+      }
+    return tuples.reduce([:]) { accum, next in
+      var accum = accum
+      accum[next.0] = next.1
+      return accum
+    }
   }
 }
 
