@@ -1,39 +1,50 @@
 public class 🇺🇸 {
   public init() {}
-  private final var pathToMethodActionMap: Dictionary<String, Dictionary<HTTPMethod, ((request: RequestType) -> (ResponseType))>> = Dictionary();
+  private final var routes: Set<Route> = []
 
-  private func registerActionForPathWithMethod(action: (request: RequestType) -> (ResponseType), path: String, method: HTTPMethod) {
-    if let methodActionMap = pathToMethodActionMap[path] {
-      var methodActionMap = methodActionMap
-      methodActionMap.updateValue(action, forKey: method)
-      pathToMethodActionMap[path] = methodActionMap
-    } else {
-      let newActionMethodMap = [method: action]
-      pathToMethodActionMap[path] = newActionMethodMap
-    }
+  private func registerActionForPathWithMethod(action: Action, path: String, method: HTTPMethod) {
+    let route = Route(method: method, path: path, action: action)
+    routes.insert(route)
   }
-
-  public final func get(path: String, action: (request: RequestType) -> (ResponseType)) {
+  public typealias Action = (params: [String:String]) -> (ResponseType)
+  public final func get(path: String, action: Action) {
     registerActionForPathWithMethod(action, path: path, method: HTTPMethod.GET)
   }
-  public final func post(path: String, action: (request: RequestType) -> (ResponseType)) {
+  public final func post(path: String, action: Action) {
     registerActionForPathWithMethod(action, path: path, method: HTTPMethod.POST)
   }
-  public final func delete(path: String, action: (request: RequestType) -> (ResponseType)) {
+  public final func delete(path: String, action: Action) {
     registerActionForPathWithMethod(action, path: path, method: HTTPMethod.DELETE)
   }
-  public final func head(path: String, action: (request: RequestType) -> (ResponseType)) {
+  public final func head(path: String, action: Action) {
     registerActionForPathWithMethod(action, path: path, method: HTTPMethod.HEAD)
   }
-  public final func put(path: String, action: (request: RequestType) -> (ResponseType)) {
+  public final func put(path: String, action: Action) {
     registerActionForPathWithMethod(action, path: path, method: HTTPMethod.PUT)
   }
   public final func application(request: RequestType) -> ResponseType {
-    guard let method = HTTPMethod(rawValue: request.method), let action = pathToMethodActionMap[request.path]?[method] else {
+    guard let method = HTTPMethod(rawValue: request.method),
+    let index = self.routes.indexOf({ $0.match(request.path, method: method) }) else {
       return NotFound()
     }
-    return action(request: request)
+    return self.routes[index].action(params: [:])
   }
+}
+
+private struct Route: Equatable, Hashable {
+  func match(path: String, method: HTTPMethod) -> Bool {
+    return path == self.path && method == self.method
+  }
+  let method: HTTPMethod
+  let path: String
+  var hashValue: Int {
+    return (method.rawValue.hashValue ^ path.hashValue)
+  }
+  let action: 🇺🇸.Action
+}
+
+private func ==(lhs: Route, rhs: Route) -> Bool {
+  return lhs.hashValue == rhs.hashValue
 }
 
 private struct NotFound: ResponseType {
