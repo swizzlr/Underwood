@@ -5,3 +5,4 @@ ADD Package.swift ./
 RUN swift build
 ADD Sources/ ./
 RUN swift build
+RUN .build/debug/UnderwoodTests

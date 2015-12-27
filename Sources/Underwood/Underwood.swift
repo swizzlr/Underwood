@@ -40,8 +40,8 @@ internal struct Route: Equatable, Hashable {
     guard self.path != path else {
       return true // Shortcut expensive computations below
     }
-    let components = path.pathComponents
-    guard PathComponent.matchPaths(components, self.path.pathComponents) else {
+    let components = path.splitPath()
+    guard PathTemplateComponent.matchTemplate(self.path.asTemplate, toComponents: components) else {
       return false
     }
     // We now have two paths that match.
@@ -57,24 +57,23 @@ internal struct Route: Equatable, Hashable {
   /// Calling this method assumes that `self.matchPath(path)` is true
   internal func parametersForPath(path: String) -> [String:String] {
     precondition(self.matchPath(path))
-    let inputPath = path.pathComponents
-    let template = self.path.pathComponents
+    let inputPath = path.splitPath()
+    let template = self.path.asTemplate
     let zipped = zip(inputPath, template)
     var returnDict: [String:String] = [:]
     for (input, template) in zipped {
-      guard case let .Variable(key) = template,
-        case let .Variable(value) = input else {
+      guard case let .Variable(key) = template else {
           continue
         }
-      returnDict[key] = value
+      returnDict[key] = input
     }
     return returnDict
   }
   internal let action: 🇺🇸.Action
-  private enum PathComponent {
+  private enum PathTemplateComponent {
     case Constant(String)
     case Variable(String)
-    static func fromString(string: String) -> PathComponent {
+    static func fromString(string: String) -> PathTemplateComponent {
       if string.hasPrefix(":") {
         var str = string
         str.removeAtIndex(str.startIndex)
@@ -83,21 +82,25 @@ internal struct Route: Equatable, Hashable {
         return .Constant(string)
       }
     }
-    func match(other: PathComponent) -> Bool {
+    /// Returns true if a template component can match a given string.
+
+    /// i.e. a Variable will match any string;
+    /// a Constant wil only match a string iff its underlying value equals the string
+    func match(other: String) -> Bool {
       switch (self, other) {
-      case let (.Constant(l), .Constant(r)):
+      case let (.Constant(l), r):
         return l == r
-      case (.Variable, .Variable):
+      case (.Variable, _):
         return true
-      default: return false
       }
     }
-    static func matchPaths(lhs: [PathComponent], _ rhs: [PathComponent]) -> Bool {
-      guard lhs.count == rhs.count else { return false }
-      for (left, right) in zip(lhs, rhs) {
-        guard left.match(right) else {
+    static func matchTemplate(template: [PathTemplateComponent], toComponents components: [String]) -> Bool {
+      guard template.count == components.count else { return false }
+      for (templateComponent, component) in zip(template, components) {
+        guard templateComponent.match(component) else {
           return false
         }
+        continue
       }
       return true
     }
@@ -111,8 +114,8 @@ private extension String {
       .map(String.init)
   }
   /// O(n)
-  var pathComponents: [Route.PathComponent] {
-    return splitPath().map(Route.PathComponent.fromString)
+  var asTemplate: [Route.PathTemplateComponent] {
+    return splitPath().map(Route.PathTemplateComponent.fromString)
   }
 }
 
