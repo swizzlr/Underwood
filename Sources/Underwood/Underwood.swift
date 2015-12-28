@@ -58,7 +58,8 @@ extension RequestType {
         }.map(String.init)
       }
       .map {
-        return ($0[0], $0[1])
+        let second = ($0.count > 1) ? $0[1] : ""
+        return ($0[0], second)
       }
     return tuples.reduce([:]) { accum, next in
       var accum = accum

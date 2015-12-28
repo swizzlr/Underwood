@@ -17,6 +17,8 @@ final class RouteMatchingTests: XCTestCase {
     let app = TestApplication()
     let result = app.application(GetAtPath(path: "/gimme-params/something?echo-this=hi&foo=bar"))
     XCTAssertEqual(result.body, "hi")
+    let result2 = app.application(GetAtPath(path: "/gimme-params/something?echo-this=&foo="))
+    XCTAssertEqual(result2.body, "")
   }
 
   func testPriority() {
